@@ -89,7 +89,7 @@ func (diff *StateOverride) Apply(statedb *state.StateDB, precompiles vm.Precompi
 			precompiles[*account.MovePrecompileTo] = p
 			dirtyAddrs[*account.MovePrecompileTo] = struct{}{}
 		}
-		if isPrecompile {
+		if isPrecompile && (account.MovePrecompileTo != nil || account.Code != nil) {
 			delete(precompiles, addr)
 		}
 		// Override account nonce.

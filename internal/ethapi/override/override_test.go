@@ -128,3 +128,44 @@ func hex2Bytes(str string) *hexutil.Bytes {
 	rpcBytes := hexutil.Bytes(common.FromHex(str))
 	return &rpcBytes
 }
+
+func TestStateOverrideBalanceOnlyKeepsPrecompile(t *testing.T) {
+	db := state.NewDatabase(triedb.NewDatabase(rawdb.NewMemoryDatabase(), nil), nil)
+	statedb, err := state.New(types.EmptyRootHash, db)
+	if err != nil {
+		t.Fatalf("failed to create statedb: %v", err)
+	}
+	precompiles := map[common.Address]vm.PrecompiledContract{
+		common.BytesToAddress([]byte{0x1}): &precompileContract{},
+	}
+	overrideAddr := common.BytesToAddress([]byte{0x1})
+
+	// Balance-only override: the precompile must stay.
+	overrides := StateOverride{
+		overrideAddr: {
+			Balance: (*hexutil.Big)(common.Big1),
+		},
+	}
+	if err := overrides.Apply(statedb, precompiles); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := precompiles[overrideAddr]; !ok {
+		t.Errorf("precompile at %s was removed by a balance-only override, expected it to stay", overrideAddr)
+	}
+
+	// Nonce-only override: the precompile must stay.
+	precompiles2 := map[common.Address]vm.PrecompiledContract{
+		common.BytesToAddress([]byte{0x1}): &precompileContract{},
+	}
+	overrides2 := StateOverride{
+		common.BytesToAddress([]byte{0x1}): {
+			Nonce: (*hexutil.Uint64)(new(uint64)),
+		},
+	}
+	if err := overrides2.Apply(statedb, precompiles2); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := precompiles2[common.BytesToAddress([]byte{0x1})]; !ok {
+		t.Errorf("precompile at 0x1 was removed by a nonce-only override, expected it to stay")
+	}
+}
